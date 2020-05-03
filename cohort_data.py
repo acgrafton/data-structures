@@ -15,20 +15,14 @@ def all_houses(filename):
       - set[str]: a set of strings
     """
 
-    houses_list = list()
+    houses = set()
 
     cohort_data = open(filename)
 
     for line in cohort_data:
-      line = line.rstrip()
-      student_profile_data = line.split("|")
-
-      house = student_profile_data[2]
-
-      if house != "":
-        houses_list = houses_list + [house]
-
-    houses = set(houses_list)
+      house = line.strip().split("|")[2]
+      if house:
+        houses.add(house)
 
     cohort_data.close()
 
@@ -71,16 +65,10 @@ def students_by_cohort(filename, cohort='All'):
       line = line.rstrip()
       student_profile_data = line.split("|")
 
-      first_name = student_profile_data[0]
-      last_name = student_profile_data[1]
-      file_cohort = student_profile_data[4]
+      first_name, last_name, _, advisor, file_cohort = student_profile_data
       
       #Add student name to 'students' list if they are not an instructor or ghost.
-      if cohort == "All" and file_cohort!= "I" and file_cohort != "G":
-        students = students + [(f"{first_name} {last_name}")]
-
-      #Add student name to 'students' list if the cohort matches in argument cohort.
-      elif cohort == file_cohort:
+      if cohort in ("All",file_cohort) and file_cohort not in ("I","G"):
         students = students + [(f"{first_name} {last_name}")]
 
     cohort_data.close()
@@ -127,52 +115,46 @@ def all_names_by_house(filename):
     ghosts = []
     instructors = []
 
-    roster_list = [dumbledores_army,gryffindor,hufflepuff,ravenclaw,
-                    slytherin,ghosts,instructors]
-
     cohort_data = open(filename)
 
     for line in cohort_data:
         line = line.rstrip()
-        data_columns = line.split("|")
+        student_profile_data = line.split("|")
 
-        first_name = data_columns[0]
-        last_name = data_columns[1]
-        house = data_columns[2]
-        cohort = data_columns[4]
+        first_name, last_name, house, advisor, cohort = student_profile_data
+
+        full_name = f"{first_name} {last_name}"
 
         if house == "Dumbledore's Army":
-            dumbledores_army.append(f"{first_name} {last_name}")
+            dumbledores_army.append(full_name)
 
         elif house == "Gryffindor":
-            gryffindor.append(f"{first_name} {last_name}")
+            gryffindor.append(full_name)
 
         elif house == "Hufflepuff":
-            hufflepuff.append(f"{first_name} {last_name}")
+            hufflepuff.append(full_name)
 
         elif house == "Ravenclaw":
-            ravenclaw.append(f"{first_name} {last_name}")
+            ravenclaw.append(full_name)
 
         elif house == "Slytherin":
-            slytherin.append(f"{first_name} {last_name}")
+            slytherin.append(full_name)
 
         elif cohort == "G":
-            ghosts.append(f"{first_name} {last_name}")
+            ghosts.append(full_name)
 
         elif cohort == "I":
-            instructors.append(f"{first_name} {last_name}")
-
-    dumbledores_army.sort()
-    gryffindor.sort()
-    hufflepuff.sort()
-    ravenclaw.sort()
-    slytherin.sort()
-    ghosts.sort()
-    instructors.sort()
+            instructors.append(full_name)
 
     cohort_data.close()
 
-    return roster_list
+    return [sorted(dumbledores_army),
+            sorted(gryffindor),
+            sorted(hufflepuff),
+            sorted(ravenclaw),
+            sorted(slytherin),
+            sorted(ghosts),
+            sorted(instructors)]
 
 
 def all_data(filename):
@@ -202,12 +184,11 @@ def all_data(filename):
         line = line.rstrip()
         student_profile_data = line.split("|")
 
-        full_name = f"{student_profile_data[0]} {student_profile_data[1]}"
-        house = student_profile_data[2]
-        advisor = student_profile_data[3]
-        cohort = student_profile_data[4]
-
-        all_data = all_data + [(full_name,house,advisor,cohort)]
+        first_name, last_name, house, advisor, cohort = student_profile_data
+        
+        full_name = f"{first_name} {last_name}"
+        
+        all_data.append((full_name,house,advisor,cohort))
 
     cohort_data.close()       
 
@@ -235,22 +216,9 @@ def get_cohort_for(filename, name):
       - str: the person's cohort or None
     """
 
-    cohort_data = open(filename)
-
-    for line in cohort_data:
-        line = line.rstrip()
-        student_profile_data = line.split("|")
-
-        full_name = f"{student_profile_data[0]} {student_profile_data[1]}"
-        cohort = student_profile_data[4]
-
-        if name == full_name:
-            break
-
-        else:
-            cohort = None
-
-    return cohort
+    for full_name, _, _, cohort_name in all_data(filename):
+      if name in full_name:
+        return cohort_name
 
 
 def find_duped_last_names(filename):
@@ -269,21 +237,21 @@ def find_duped_last_names(filename):
 
     cohort_data = open(filename)
 
-    duplicate_last_names = set()
     last_names = []
 
     for line in cohort_data:
         line = line.rstrip()
         student_profile_data = line.split("|")
-        last_name = student_profile_data[1]
+        
+        #Unpacking List with Identifiers
+        first_name, last_name, house, advisor, cohort = student_profile_data
 
         #Create a list of all last names
         last_names = last_names + [last_name]
 
     #Loop through list of last names and add to set of duplicate last names    
-    for last_name in last_names:
-        if last_names.count(last_name) > 1:
-            duplicate_last_names.add(last_name)
+    duplicate_last_names = {last_name for last_name in last_names
+                          if last_names.count(last_name) > 1}
 
     return duplicate_last_names
 
@@ -300,32 +268,26 @@ def get_housemates_for(filename, name):
     {'Angelina Johnson', ..., 'Seamus Finnigan'}
     """
 
-    all_students = all_data(filename)
+    #Get student's cohort and assign variable.
+    student_cohort = get_cohort_for(filename,name)
 
-    for index, student in enumerate(all_students):
-      if all_students[index][0] == name:
-        house = all_students[index][1]
-        cohort = all_students[index][3]
-        all_students.pop(index)
+    #Get student's house and assign variable.
+    for full_name, house, _, _ in all_data(filename):
+      if name in full_name:
+        student_house = house
         break
 
-    housemates = []
-    cohort_mates = []
+    #Create set with housemates.    
+    housemates = {name 
+                  for name, house, advisor, cohort in all_data(filename)
+                  if student_house in house and name not in full_name}
 
-    #loop through all students
-    for index, student in enumerate(all_students):
-      #if students are in the same house, add to housemates list
-      if all_students[index][1] == house:
-        housemates = housemates + [all_students[index][0]]
-      #if students are in the same cohort, add to cohort_mates list
-      if all_students[index][3] == cohort:
-        cohort_mates = cohort_mates + [all_students[index][0]]
+    #Create set with all cohort_mates
+    cohort_mates = {name 
+                  for name, house, advisor, cohort in all_data(filename)
+                  if student_cohort in cohort and name not in full_name}
 
-    #convert housemates and cohort_mates lists into sets    
-    housemates = set(housemates)
-    cohort_mates = set(cohort_mates)
-
-    #return intersection of housemates and cohort_mates
+    #Return intersection of housemates and cohort_mates
     return housemates & cohort_mates
 
 
